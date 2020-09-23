@@ -5,7 +5,6 @@ endif
 
 let g:plugin_updates_echo_total = 0
 let g:plugin_updates_manifest = {}   " manifest of plugins and if they have updates
-let s:check_results = {}   " temp manifest while checks are running
 
 
 " Utils ===============================================
@@ -67,9 +66,13 @@ endfunction
 " Internal funcs ======================================
 
 function! s:checkRemotes()
-	let s:check_results = {}
+	let g:plugin_updates_manifest = {}
 	for [name, plugin] in items(g:plugs)
-		call jobstart('git -C ' . plugin.dir . ' remote update > /dev/null', {'plugin': [name, plugin], 'on_exit': function('s:checkUpdates')})
+		let l:options = {
+			\'plugin': [name, plugin],
+			\'on_exit': function('s:checkUpdates'),
+		\}
+		call jobstart('git -C ' . plugin.dir . ' remote update > /dev/null', l:options)
 	endfor
 endfunction
 
@@ -80,21 +83,26 @@ function! s:checkUpdates(...) dict
 	if plugin.branch
 		let l:target += '/' . plugin.branch
 	endif
-	call jobstart('git -C ' . plugin.dir . ' rev-list HEAD..' . l:target . ' --count', {'plugin': [name, plugin], 'on_exit': function('s:processUpdateCheck')})
+	let l:options = {
+		\'plugin': [name, plugin],
+		\'on_stdout': function('s:processUpdateCheck'),
+		\'stdout_buffered': 1,
+	\}
+	call jobstart('git -C ' . plugin.dir . ' rev-list HEAD..' . l:target . ' --count', l:options)
 endfunction
 
 
 function! s:processUpdateCheck(jobs_id, data, event) dict
 	let [name, plugin] = self.plugin
+	let l:diff = a:data[0]
 	if s:isGitRepo(plugin.dir)
-		let l:result = s:bool(str2nr(a:data))
+		let l:result = s:bool(str2nr(l:diff))
 	else
 		let l:result = 0
 	endif
 
-	let s:check_results[name] = l:result
-	if len(g:plugs) ==# len(s:check_results)
-		let g:plugin_updates_manifest = s:check_results
+	let g:plugin_updates_manifest[name] = l:result
+	if len(g:plugs) ==# len(g:plugin_updates_manifest)
 		call s:showPluginUpdates()
 	endif
 endfunction
@@ -150,5 +158,16 @@ endfunction
 
 function! HasUpdates(plugin)
 	return get(g:plugin_updates_manifest, plugin, 0)
+endfunction
+
+
+function! PluginsWithUpdates()
+	let l:has_updates = []
+	for [name, has_update] in items(g:plugin_updates_manifest)
+		if has_update
+			call add(l:has_updates, name)
+		endif
+	endfor
+	return l:has_updates
 endfunction
 
