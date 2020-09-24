@@ -6,4 +6,3 @@ Install with Vim-Plug:
 ```vimscript
 Plug 'loganswartz/vim_plug_updates'
 ```
-

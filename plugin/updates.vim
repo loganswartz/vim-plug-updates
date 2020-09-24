@@ -1,7 +1,7 @@
 if exists('g:plugin_updates_loaded')
 	finish
 endif
-" let g:plugin_updates_loaded = 1
+let g:plugin_updates_loaded = 1
 
 let g:plugin_updates_echo_total = 0
 let g:plugin_updates_manifest = {}   " manifest of plugins and if they have updates
@@ -80,7 +80,7 @@ endfunction
 function! s:checkUpdates(...) dict
 	let [name, plugin] = self.plugin
 	let l:target = 'origin'
-	if plugin.branch
+	if plugin.branch != ''
 		let l:target += '/' . plugin.branch
 	endif
 	let l:options = {
