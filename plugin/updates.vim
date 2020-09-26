@@ -23,6 +23,7 @@ function! s:bool(var)
 		return 1
 	else
 		return 0
+	endif
 endfunction
 
 
@@ -126,7 +127,10 @@ endfunction
 
 function! s:processVimPlugCheck(job_id, data, event) dict
 	let [new, old] = self.vimplug_update_check
-	let g:vimplugHasUpdate = s:compareFiles(new, old)
+	try
+		let g:vimplugHasUpdate = s:compareFiles(new, old)
+	catch E484
+	endtry
 endfunction
 
 
@@ -171,3 +175,4 @@ function! PluginsWithUpdates()
 	return l:has_updates
 endfunction
 
+command! PluginsWithUpdates echo PluginsWithUpdates()
