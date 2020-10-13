@@ -82,7 +82,7 @@ function! s:checkUpdates(...) dict
 	let [name, plugin] = self.plugin
 	let l:target = 'origin'
 	if plugin.branch != ''
-		let l:target += '/' . plugin.branch
+		let l:target = l:target . '/' . plugin.branch
 	endif
 	let l:options = {
 		\'plugin': [name, plugin],
