@@ -8,11 +8,8 @@ let g:plugin_updates_manifest = {}   " manifest of plugins and if they have upda
 
 " Utils ===============================================
 function! s:compareFiles(a, b)
-	if readfile(a:a) ==# readfile(a:b)
-		return 1   " true if identical
-	else
-		return 0   " otherwise false
-	endif
+	let output = system(['cmp', '-s', a:a, a:b])
+	return v:shell_error
 endfunction
 
 function! s:bool(var)
@@ -25,17 +22,6 @@ endfunction
 
 function! s:sum(numbers)
 	return eval(join(a:numbers, '+'))
-endfunction
-
-" plug_call() from Vim-Plug
-function! s:call(fn, ...)
-	let shellslash = &shellslash
-	try
-		set noshellslash
-		return call(a:fn, a:000)
-	finally
-		let &shellslash = shellslash
-	endtry
 endfunction
 
 function! s:getVimPlugPath()
@@ -98,15 +84,15 @@ function! s:processUpdateCheck(jobs_id, data, event) dict
 endfunction
 
 function! s:checkVimPlugUpdate()
-	let l:plug_src = 'https://github.com/junegunn/vim-plug.git'
+	let l:plug_src = 'https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
 	let l:plug_path = s:getVimPlugPath()
 	if len(l:plug_path) < 0
 		return 0
 	endif
 
-	let tmp = s:call('tempname') . '/plug.vim'
+	let tmp = tempname()
 	try
-		let out = jobstart(['git', 'clone', '--depth', '1', l:plug_src, tmp], {'vimplug_update_check': [tmp, l:plug_path], 'on_exit': function('s:processVimPlugCheck')})
+		let out = jobstart(['curl', '-L', l:plug_src, '-o', tmp], {'vimplug_update_check': [tmp, l:plug_path], 'on_exit': function('s:processVimPlugCheck')})
 	finally
 		call delete(tmp)
 	endtry
@@ -165,7 +151,7 @@ endfunction
 
 function! VimPlugUpdatesIndicator()
 	if exists('g:vimplugHasUpdate') && g:vimplugHasUpdate
-		return '🔌 Vim-Plug Update Available'
+		return '🔌 Update Available'
 	else
 		return ''
 	endif
@@ -173,3 +159,4 @@ endfunction
 
 command! PluginsWithUpdates echo PluginsWithUpdates()
 command! PluginUpdate PlugUpdate --sync | call CheckForUpdates()
+command! PluginUpgrade PlugUpgrade | call CheckForUpdates()
