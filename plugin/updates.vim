@@ -50,7 +50,7 @@ function! s:checkRemotes()
             \'plugin': [name, plugin],
             \'on_exit': function('s:checkUpdates'),
         \}
-        call jobstart('git -C ' . plugin.dir . ' remote update > /dev/null', l:options)
+        call jobstart(['git', '-C', plugin.dir, 'remote', 'update'], l:options)
     endfor
 endfunction
 
@@ -65,7 +65,7 @@ function! s:checkUpdates(...) dict
         \'on_stdout': function('s:processUpdateCheck'),
         \'stdout_buffered': 1,
     \}
-    call jobstart('git -C ' . plugin.dir . ' rev-list HEAD..' . l:target . ' --count', l:options)
+    call jobstart(['git', '-C', plugin.dir, 'rev-list', 'HEAD..' . l:target, '--count'], l:options)
 endfunction
 
 function! s:processUpdateCheck(jobs_id, data, event) dict
@@ -91,8 +91,12 @@ function! s:checkVimPlugUpdate()
     endif
 
     let tmp = tempname()
+    let l:options = {
+        \'vimplug_update_check': [tmp, l:plug_path],
+        \'on_exit': function('s:processVimPlugCheck')
+    \}
     try
-        let out = jobstart(['curl', '-L', l:plug_src, '-o', tmp], {'vimplug_update_check': [tmp, l:plug_path], 'on_exit': function('s:processVimPlugCheck')})
+        let out = jobstart(['curl', '-L', l:plug_src, '-o', tmp], l:options)
     finally
         call delete(tmp)
     endtry
