@@ -7,6 +7,57 @@ let g:plugin_updates_echo_total = 0
 let g:plugin_updates_manifest = {}   " manifest of plugins and if they have updates
 
 " Utils ===============================================
+function! g:DeterminePluginManager()
+    if exists('g:plugs')
+        return 'vim_plug'
+    elseif exists(':PackerCompile')
+        return 'packer'
+    else
+        return 0
+    endif
+endfunction
+
+function! s:getPluginManagerInfo(key)
+    let s:manager = g:DeterminePluginManager()
+
+    let l:managers = {}
+    let l:managers['vim_plug'] = {
+                \ 'default_plugin_dir': stdpath('data') . '/plugged',
+                \ 'plugins': s:getVimPlugPlugins()
+                \ }
+    let l:managers['packer'] = {
+                \ 'default_plugin_dir': stdpath('data') . '/site/pack/packer',
+                \ 'plugins': s:getPackerPlugins()
+                \ }
+
+    return l:managers[s:manager][a:key]
+endfunction
+
+function! s:getVimPlugPlugins()
+    if g:DeterminePluginManager() != 'vim_plug'
+        return {}
+    endif
+
+    let l:mapped = {}
+    for [plugin, info] in items(g:plugs)
+        let l:mapped[plugin] = info['dir']
+    endfor
+    return l:mapped
+endfunction
+
+function! s:getPackerPlugins()
+    if g:DeterminePluginManager() != 'packer'
+        return {}
+    endif
+
+    let l:data = luaeval('packer_plugins')
+    let l:mapped = {}
+    for [plugin, info] in items(l:data)
+        let l:mapped[plugin] = info['path']
+    endfor
+    return l:mapped
+endfunction
+
 function! s:compareFiles(a, b)
     let output = system(['cmp', '-s', a:a, a:b])
     return v:shell_error
@@ -45,40 +96,41 @@ endfunction
 " Internal funcs ======================================
 function! s:checkRemotes()
     let g:plugin_updates_manifest = {}
-    for [name, plugin] in items(g:plugs)
+    for [plugin, path] in items(s:getPluginManagerInfo('plugins'))
         let l:options = {
-            \'plugin': [name, plugin],
+            \'plugin': [plugin, path],
             \'on_exit': function('s:checkUpdates'),
         \}
-        call jobstart(['git', '-C', plugin.dir, 'remote', 'update'], l:options)
+        call jobstart(['git', '-C', path, 'remote', 'update'], l:options)
     endfor
 endfunction
 
+function s:getCurrentBranch(path)
+    return trim(system(['git', '-C', a:path, 'symbolic-ref', '--short', 'HEAD']))
+endfunction
+
 function! s:checkUpdates(...) dict
-    let [name, plugin] = self.plugin
-    let l:target = 'origin'
-    if plugin.branch != ''
-        let l:target = l:target . '/' . plugin.branch
-    endif
+    let [plugin, path] = self.plugin
+    let l:target = 'origin/' . s:getCurrentBranch(path)
     let l:options = {
-        \'plugin': [name, plugin],
-        \'on_stdout': function('s:processUpdateCheck'),
-        \'stdout_buffered': 1,
+        \ 'plugin': [plugin, path],
+        \ 'on_stdout': function('s:processUpdateCheck'),
+        \ 'stdout_buffered': 1,
     \}
-    call jobstart(['git', '-C', plugin.dir, 'rev-list', 'HEAD..' . l:target, '--count'], l:options)
+    call jobstart(['git', '-C', path, 'rev-list', 'HEAD..' . l:target, '--count'], l:options)
 endfunction
 
 function! s:processUpdateCheck(jobs_id, data, event) dict
-    let [name, plugin] = self.plugin
+    let [plugin, path] = self.plugin
     let l:diff = a:data[0]
-    if s:isGitRepo(plugin.dir)
+    if s:isGitRepo(path)
         let l:result = s:bool(str2nr(l:diff))
     else
         let l:result = 0
     endif
 
-    let g:plugin_updates_manifest[name] = l:result
-    if len(g:plugs) ==# len(g:plugin_updates_manifest)
+    let g:plugin_updates_manifest[plugin] = l:result
+    if len(s:getPluginManagerInfo('plugins')) ==# len(g:plugin_updates_manifest)
         call s:showPluginUpdates()
     endif
 endfunction
@@ -126,11 +178,6 @@ function! CheckForVimPlugUpdates()
     call s:checkVimPlugUpdate()
 endfunction
 
-function! CheckForUpdates()
-    call CheckForVimPlugUpdates()
-    call CheckForPluginUpdates()
-endfunction
-
 function! HasUpdates(plugin)
     return get(g:plugin_updates_manifest, plugin, 0)
 endfunction
@@ -162,5 +209,5 @@ function! VimPlugUpdatesIndicator()
 endfunction
 
 command! PluginsWithUpdates echo PluginsWithUpdates()
-command! PluginUpdate PlugUpdate --sync | call CheckForUpdates()
-command! PluginUpgrade PlugUpgrade | call CheckForUpdates()
+command! PluginUpdate PlugUpdate --sync | call CheckForPluginUpdates()
+command! PluginUpgrade PlugUpgrade | call CheckForPluginUpdates()
