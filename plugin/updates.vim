@@ -23,11 +23,15 @@ function! s:getPluginManagerInfo(key)
     let l:managers = {}
     let l:managers['vim_plug'] = {
                 \ 'default_plugin_dir': stdpath('data') . '/plugged',
-                \ 'plugins': s:getVimPlugPlugins()
+                \ 'plugins': s:getVimPlugPlugins(),
+                \ 'update_hook': {-> execute('PlugUpdate --sync')},
+                \ 'upgrade_hook': {-> execute('PlugUpgrade')},
                 \ }
     let l:managers['packer'] = {
                 \ 'default_plugin_dir': stdpath('data') . '/site/pack/packer',
-                \ 'plugins': s:getPackerPlugins()
+                \ 'plugins': s:getPackerPlugins(),
+                \ 'update_hook': {-> execute('lua require("packer").update()')},
+                \ 'upgrade_hook': {-> execute('lua require("packer").update("packer.nvim")')},
                 \ }
 
     return l:managers[s:manager][a:key]
@@ -209,5 +213,5 @@ function! VimPlugUpdatesIndicator()
 endfunction
 
 command! PluginsWithUpdates echo PluginsWithUpdates()
-command! PluginUpdate PlugUpdate --sync | call CheckForPluginUpdates()
-command! PluginUpgrade PlugUpgrade | call CheckForPluginUpdates()
+command! PluginUpdate call s:getPluginManagerInfo('update_hook')() | call CheckForPluginUpdates()
+command! PluginUpgrade call s:getPluginManagerInfo('upgrade_hook')() | call CheckForPluginUpdates()
