@@ -1,5 +1,6 @@
 # vim-plug-updates
-A simple plugin that checks for plugin updates (and vim-plug updates too). Supports vim-plug and packer.nvim.
+A simple plugin that checks for plugin updates (and vim-plug updates too).
+Supports vim-plug and packer.nvim.
 
 ## Installation
 Using vim-plug:
@@ -12,16 +13,8 @@ use 'loganswartz/vim_plug_updates'
 ```
 
 ## Usage
-In your vimrc:
-```vimscript
-augroup updates
-    autocmd VimEnter * call CheckForPluginUpdates()
-    " if using vim-plug
-    autocmd VimEnter * call CheckForVimPlugUpdates()
-augroup END
-```
-Now you can configure your statusline to show the number of detected updates.
-Here's an example with lightline.vim:
+Configure your statusline to show the number of detected updates. Here's an
+example from my own vimrc, using lightline.vim:
 ```vimscript
 let g:lightline = {
 \     'colorscheme': 'onedark',
@@ -39,5 +32,17 @@ let g:lightline = {
 \     },
 \ }
 ```
-Then, when an update is detected, call `:PluginUpdate` or `:PluginUpgrade` to
-run the appropriate update hook and refresh the update indicator.
+This will render an segment that looks like this: `▲ 3`
+
+## Configuration
+The indicator total will update automatically based on autocommands. By
+default, it checks for updates on startup, as well as certain events for
+vim-plug or packer.nvim. For vim-plug, it updates after any vim-plug window
+closes, and for packer, it checks on the PackerComplete User autocommand. This
+behavior can be modified by setting certain global variables to true (1) in
+your vimrc:
+
+|                 Variable                  |                        Description                  |
+|-------------------------------------------|-----------------------------------------------------|
+| `g:plugin_updates_disable_startup_check`  | Disable update check on startup                     |
+| `g:plugin_updates_disable_vim_plug_check` | Disable update check on startup for vim-plug itself |

@@ -3,11 +3,45 @@ if exists('g:plugin_updates_loaded')
 endif
 let g:plugin_updates_loaded = 1
 
-let g:plugin_updates_echo_total = 0
 let g:plugin_updates_manifest = {}   " manifest of plugins and if they have updates
 
 " Utils ===============================================
-function! g:DeterminePluginManager()
+function! s:compareFiles(a, b)
+    let output = system(['cmp', '-s', a:a, a:b])
+    return v:shell_error
+endfunction
+
+function! s:bool(var)
+    if a:var
+        return 1
+    else
+        return 0
+    endif
+endfunction
+
+function! s:sum(numbers)
+    if len(a:numbers) > 0
+        return eval(join(a:numbers, '+'))
+    else
+        return 0
+    endif
+endfunction
+
+function! s:isGitRepo(path)
+    let result = trim(system(['git', '-C', a:path, 'rev-parse', '--is-inside-work-tree']))
+    if result ==# 'true'
+        return 1
+    else
+        return 0
+    endif
+endfunction
+
+function s:getCurrentBranch(path)
+    return trim(system(['git', '-C', a:path, 'symbolic-ref', '--short', 'HEAD']))
+endfunction
+
+" Plugins =============================================
+function! s:determinePluginManager()
     if exists('g:plugs')
         return 'vim_plug'
     elseif exists(':PackerCompile')
@@ -18,7 +52,7 @@ function! g:DeterminePluginManager()
 endfunction
 
 function! s:getPluginManagerInfo(key)
-    let s:manager = g:DeterminePluginManager()
+    let s:manager = s:determinePluginManager()
 
     let l:managers = {}
     let l:managers['vim_plug'] = {
@@ -38,7 +72,7 @@ function! s:getPluginManagerInfo(key)
 endfunction
 
 function! s:getVimPlugPlugins()
-    if g:DeterminePluginManager() != 'vim_plug'
+    if s:determinePluginManager() != 'vim_plug'
         return {}
     endif
 
@@ -50,7 +84,7 @@ function! s:getVimPlugPlugins()
 endfunction
 
 function! s:getPackerPlugins()
-    if g:DeterminePluginManager() != 'packer'
+    if s:determinePluginManager() != 'packer'
         return {}
     endif
 
@@ -62,23 +96,6 @@ function! s:getPackerPlugins()
     return l:mapped
 endfunction
 
-function! s:compareFiles(a, b)
-    let output = system(['cmp', '-s', a:a, a:b])
-    return v:shell_error
-endfunction
-
-function! s:bool(var)
-    if a:var
-        return 1
-    else
-        return 0
-    endif
-endfunction
-
-function! s:sum(numbers)
-    return eval(join(a:numbers, '+'))
-endfunction
-
 function! s:getVimPlugPath()
     let l:plug_path = split(globpath(&rtp, '**/plug.vim'), '\n')
     if len(l:plug_path) != 1
@@ -88,29 +105,15 @@ function! s:getVimPlugPath()
     endif
 endfunction
 
-function! s:isGitRepo(path)
-    let result = trim(system(['git', '-C', a:path, 'rev-parse', '--is-inside-work-tree']))
-    if result ==# 'true'
-        return 1
-    else
-        return 0
-    endif
-endfunction
-
-" Internal funcs ======================================
 function! s:checkRemotes()
     let g:plugin_updates_manifest = {}
     for [plugin, path] in items(s:getPluginManagerInfo('plugins'))
         let l:options = {
-            \'plugin': [plugin, path],
-            \'on_exit': function('s:checkUpdates'),
-        \}
+            \ 'plugin': [plugin, path],
+            \ 'on_exit': function('s:checkUpdates'),
+        \ }
         call jobstart(['git', '-C', path, 'remote', 'update'], l:options)
     endfor
-endfunction
-
-function s:getCurrentBranch(path)
-    return trim(system(['git', '-C', a:path, 'symbolic-ref', '--short', 'HEAD']))
 endfunction
 
 function! s:checkUpdates(...) dict
@@ -120,7 +123,7 @@ function! s:checkUpdates(...) dict
         \ 'plugin': [plugin, path],
         \ 'on_stdout': function('s:processUpdateCheck'),
         \ 'stdout_buffered': 1,
-    \}
+    \ }
     call jobstart(['git', '-C', path, 'rev-list', 'HEAD..' . l:target, '--count'], l:options)
 endfunction
 
@@ -134,9 +137,6 @@ function! s:processUpdateCheck(jobs_id, data, event) dict
     endif
 
     let g:plugin_updates_manifest[plugin] = l:result
-    if len(s:getPluginManagerInfo('plugins')) ==# len(g:plugin_updates_manifest)
-        call s:showPluginUpdates()
-    endif
 endfunction
 
 function! s:checkVimPlugUpdate()
@@ -148,9 +148,9 @@ function! s:checkVimPlugUpdate()
 
     let tmp = tempname()
     let l:options = {
-        \'vimplug_update_check': [tmp, l:plug_path],
-        \'on_exit': function('s:processVimPlugCheck')
-    \}
+        \ 'vimplug_update_check': [tmp, l:plug_path],
+        \ 'on_exit': function('s:processVimPlugCheck')
+    \ }
     try
         let out = jobstart(['curl', '-L', l:plug_src, '-o', tmp], l:options)
     finally
@@ -166,11 +166,8 @@ function! s:processVimPlugCheck(job_id, data, event) dict
     endtry
 endfunction
 
-function! s:showPluginUpdates()
-    let g:totalPluginUpdates = s:sum(values(g:plugin_updates_manifest))
-    if exists('g:plugin_updates_echo_total') && g:plugin_updates_echo_total
-        echo 'Updates: ' . g:totalPluginUpdates
-    endif
+function! TotalPluginUpdates()
+    return s:sum(values(g:plugin_updates_manifest))
 endfunction
 
 " Public functions ====================================
@@ -197,8 +194,9 @@ function! PluginsWithUpdates()
 endfunction
 
 function! PluginUpdatesIndicator()
-    if exists('g:totalPluginUpdates') && g:totalPluginUpdates > 0
-        return  '▲ ' . g:totalPluginUpdates
+    let l:updates = TotalPluginUpdates()
+    if l:updates > 0
+        return  '▲ ' . l:updates
     else
         return ''
     endif
@@ -213,5 +211,19 @@ function! VimPlugUpdatesIndicator()
 endfunction
 
 command! PluginsWithUpdates echo PluginsWithUpdates()
-command! PluginUpdate call s:getPluginManagerInfo('update_hook')() | call CheckForPluginUpdates()
-command! PluginUpgrade call s:getPluginManagerInfo('upgrade_hook')() | call CheckForPluginUpdates()
+command! CheckForPluginUpdates call CheckForPluginUpdates()
+
+augroup plugin_updates
+    if !exists('g:plugin_updates_disable_startup_check')
+        autocmd VimEnter * call CheckForPluginUpdates()
+    endif
+    if !exists('g:plugin_updates_disable_vim_plug_check') && s:determinePluginManager() ==? 'vim-plug'
+        autocmd VimEnter * call CheckForVimPlugUpdates()
+    endif
+
+    if s:determinePluginManager() ==? 'packer'
+        autocmd User PackerComplete call CheckForPluginUpdates()
+    elseif s:determinePluginManager() ==? 'vim-plug'
+        autocmd BufWinLeave * if &ft ==? 'vim-plug' | call CheckForPluginUpdates()
+    endif
+augroup END
